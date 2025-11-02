@@ -39,7 +39,15 @@ export const getServerGlobalConfig = async () => {
 
       /* ↑ cloud slot ↑ */
       ollama: {
-        enabled: isDesktop ? true : !!process.env.ENABLED_OLLAMA,
+        enabled: (() => {
+          const result = isDesktop ? true : !!process.env.ENABLED_OLLAMA;
+          console.log('=== OLLAMA CONFIG DEBUG ===');
+          console.log('isDesktop:', isDesktop);
+          console.log('ENABLED_OLLAMA env:', process.env.ENABLED_OLLAMA);
+          console.log('Final enabled value:', result);
+          console.log('=== END DEBUG ===');
+          return result;
+        })(),
         fetchOnClient: isDesktop ? false : !process.env.OLLAMA_PROXY_URL,
       },
       ollamacloud: {
