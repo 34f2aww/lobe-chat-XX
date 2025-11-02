@@ -24,6 +24,7 @@ import {
 } from '@/types/asyncTask';
 import { safeParseJSON } from '@/utils/safeParseJSON';
 import { sanitizeUTF8 } from '@/utils/sanitizeUTF8';
+import { isDesktop } from '@/const/version';
 
 const fileProcedure = asyncAuthedProcedure.use(async (opts) => {
   const { ctx } = opts;
@@ -91,6 +92,12 @@ export const fileRouter = router({
             await pMap(
               requestArray,
               async (chunks, index) => {
+                console.log('=== EMBEDDING CONFIG DEBUG ===');
+                console.log('getServerDefaultFilesConfig():', JSON.stringify(getServerDefaultFilesConfig(), null, 2));
+                console.log('DEFAULT_FILE_EMBEDDING_MODEL_ITEM:', JSON.stringify(DEFAULT_FILE_EMBEDDING_MODEL_ITEM, null, 2));
+                console.log('Final provider/model:', { provider, model });
+                console.log('isDesktop:', isDesktop);
+                console.log('=== END DEBUG ===');
                 const agentRuntime = await initModelRuntimeWithUserPayload(
                   provider,
                   ctx.jwtPayload,
