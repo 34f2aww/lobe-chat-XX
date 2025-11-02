@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { serverDBEnv } from '@/config/db';
 import { DEFAULT_FILE_EMBEDDING_MODEL_ITEM } from '@/const/settings/knowledge';
+import { isDesktop } from '@/const/version';
 import { ASYNC_TASK_TIMEOUT, AsyncTaskModel } from '@/database/models/asyncTask';
 import { ChunkModel } from '@/database/models/chunk';
 import { EmbeddingModel } from '@/database/models/embedding';
@@ -24,7 +25,6 @@ import {
 } from '@/types/asyncTask';
 import { safeParseJSON } from '@/utils/safeParseJSON';
 import { sanitizeUTF8 } from '@/utils/sanitizeUTF8';
-import { isDesktop } from '@/const/version';
 
 const fileProcedure = asyncAuthedProcedure.use(async (opts) => {
   const { ctx } = opts;
@@ -58,8 +58,17 @@ export const fileRouter = router({
 
       const asyncTask = await ctx.asyncTaskModel.findById(input.taskId);
 
-      const { model, provider } =
-        getServerDefaultFilesConfig().embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
+      const serverConfig = getServerDefaultFilesConfig();
+      console.log('=== EMBEDDING CONFIG DEBUG v2 ===');
+      console.log('serverConfig:', JSON.stringify(serverConfig, null, 2));
+      console.log(
+        'DEFAULT_FILE_EMBEDDING_MODEL_ITEM:',
+        JSON.stringify(DEFAULT_FILE_EMBEDDING_MODEL_ITEM, null, 2),
+      );
+      const { model, provider } = serverConfig.embeddingModel || DEFAULT_FILE_EMBEDDING_MODEL_ITEM;
+      console.log('Final provider/model:', { model, provider });
+      console.log('isDesktop:', isDesktop);
+      console.log('=== END DEBUG v2 ===');
 
       if (!asyncTask) throw new TRPCError({ code: 'BAD_REQUEST', message: 'Async Task not found' });
 
@@ -93,9 +102,15 @@ export const fileRouter = router({
               requestArray,
               async (chunks, index) => {
                 console.log('=== EMBEDDING CONFIG DEBUG ===');
-                console.log('getServerDefaultFilesConfig():', JSON.stringify(getServerDefaultFilesConfig(), null, 2));
-                console.log('DEFAULT_FILE_EMBEDDING_MODEL_ITEM:', JSON.stringify(DEFAULT_FILE_EMBEDDING_MODEL_ITEM, null, 2));
-                console.log('Final provider/model:', { provider, model });
+                console.log(
+                  'getServerDefaultFilesConfig():',
+                  JSON.stringify(getServerDefaultFilesConfig(), null, 2),
+                );
+                console.log(
+                  'DEFAULT_FILE_EMBEDDING_MODEL_ITEM:',
+                  JSON.stringify(DEFAULT_FILE_EMBEDDING_MODEL_ITEM, null, 2),
+                );
+                console.log('Final provider/model:', { model, provider });
                 console.log('isDesktop:', isDesktop);
                 console.log('=== END DEBUG ===');
                 const agentRuntime = await initModelRuntimeWithUserPayload(
@@ -123,7 +138,14 @@ export const fileRouter = router({
               },
               { concurrency: CONCURRENCY },
             );
-          } catch (e) {
+          } catch (e: any) {
+            console.error('=== EMBEDDING ERROR DEBUG ===');
+            console.error('Error caught in embedding loop:', e);
+            console.error('Error type:', typeof e);
+            console.error('Error name:', e?.name);
+            console.error('Error message:', e?.message);
+            console.error('Stringified error:', JSON.stringify(e, null, 2));
+            console.error('=== END ERROR DEBUG ===');
             throw {
               message: JSON.stringify(e),
               name: AsyncTaskErrorType.EmbeddingError,
@@ -142,8 +164,35 @@ export const fileRouter = router({
 
         // Race between the chunking process and the timeout
         return await Promise.race([embeddingPromise(), timeoutPromise]);
-      } catch (e) {
+      } catch (e: any) {
+        // Create a debug file to verify this code is executed
+        try {
+          const fs = require('node:fs');
+          fs.writeFileSync(
+            '/tmp/embedding-debug.log',
+            `=== EMBEDDING ERROR ===\n${new Date().toISOString()}\nError: ${JSON.stringify(e, null, 2)}\nStack: ${e?.stack}\n=== END ===\n`,
+          );
+        } catch {
+          // Ignore file write errors
+        }
+
+        // Force write to stderr to ensure it appears in Docker logs
+        process.stderr.write('=== TOP LEVEL EMBEDDING ERROR DEBUG ===\n');
+        process.stderr.write(`embeddingChunks error: ${JSON.stringify(e, null, 2)}\n`);
+        process.stderr.write(`Error type: ${typeof e}\n`);
+        process.stderr.write(`Error name: ${e?.name}\n`);
+        process.stderr.write(`Error message: ${e?.message}\n`);
+        process.stderr.write(`Error stack: ${e?.stack}\n`);
+        process.stderr.write('=== END TOP LEVEL DEBUG ===\n');
+
+        console.error('=== TOP LEVEL EMBEDDING ERROR DEBUG ===');
         console.error('embeddingChunks error', e);
+        console.error('Error type:', typeof e);
+        console.error('Error name:', e?.name);
+        console.error('Error message:', e?.message);
+        console.error('Error stack:', e?.stack);
+        console.error('Stringified error:', JSON.stringify(e, null, 2));
+        console.error('=== END TOP LEVEL DEBUG ===');
 
         await ctx.asyncTaskModel.update(input.taskId, {
           error: new AsyncTaskError((e as Error).name, (e as Error).message),

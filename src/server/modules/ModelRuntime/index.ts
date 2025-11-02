@@ -171,7 +171,10 @@ const buildVertexOptions = (
 
   const project = projectFromParams ?? projectFromCredentials ?? projectFromEnv;
   const location =
-    (params.location as string | undefined) ?? payload.vertexAIRegion ?? process.env.VERTEXAI_LOCATION ?? undefined;
+    (params.location as string | undefined) ??
+    payload.vertexAIRegion ??
+    process.env.VERTEXAI_LOCATION ??
+    undefined;
 
   const googleAuthOptions = params.googleAuthOptions ?? (credentials ? { credentials } : undefined);
 
@@ -201,6 +204,15 @@ export const initModelRuntimeWithUserPayload = (
 ) => {
   const runtimeProvider = payload.runtimeProvider ?? provider;
 
+  console.log('=== MODEL RUNTIME INIT DEBUG ===');
+  console.log('provider:', provider);
+  console.log('runtimeProvider:', runtimeProvider);
+  console.log('OLLAMA_PROXY_URL env:', process.env.OLLAMA_PROXY_URL);
+  const paramsFromPayload = getParamsFromPayload(runtimeProvider, payload);
+  console.log('paramsFromPayload:', JSON.stringify(paramsFromPayload, null, 2));
+  console.log('extra params:', JSON.stringify(params, null, 2));
+  console.log('=== END DEBUG ===');
+
   if (runtimeProvider === ModelProvider.VertexAI) {
     const vertexOptions = buildVertexOptions(payload, params);
     const runtime = LobeVertexAI.initFromVertexAI(vertexOptions);
@@ -209,7 +221,7 @@ export const initModelRuntimeWithUserPayload = (
   }
 
   return ModelRuntime.initializeWithProvider(runtimeProvider, {
-    ...getParamsFromPayload(runtimeProvider, payload),
+    ...paramsFromPayload,
     ...params,
   });
 };

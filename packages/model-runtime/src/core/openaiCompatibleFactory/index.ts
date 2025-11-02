@@ -188,7 +188,11 @@ export const createOpenAICompatibleRuntime = <T extends Record<string, any> = an
       const { apiKey, baseURL = DEFAULT_BASE_URL, ...res } = _options;
       this._options = _options as ConstructorOptions<T>;
 
-      if (!apiKey) throw AgentRuntimeError.createError(ErrorType?.invalidAPIKey);
+      // Skip API key validation for providers that don't require it (like Ollama)
+      const providersWithoutApiKey = ['ollama'];
+      if (!apiKey && !providersWithoutApiKey.includes(provider)) {
+        throw AgentRuntimeError.createError(ErrorType?.invalidAPIKey);
+      }
 
       const initOptions = { apiKey, baseURL, ...constructorOptions, ...res };
 
